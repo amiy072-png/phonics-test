@@ -260,6 +260,7 @@ button:disabled{opacity:.45;cursor:not-allowed} .stop{background:#6b7280} .delet
 
 <div class="actions">
 <button type="button" id="scoreBtn">完成第一、二部分並計分</button>
+<button type="button" id="submitBtn">提交測驗給老師</button>
 <button type="button" id="csvBtn">下載作答紀錄 CSV</button>
 </div>
 <div id="result" aria-live="polite"></div>
@@ -335,5 +336,83 @@ document.getElementById('csvBtn').addEventListener('click',()=>{
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='拼讀能力測驗作答紀錄.csv';a.click();
 });
 </script>
+  <script>
+const SUBMIT_URL = 'https://script.google.com/macros/s/AKfycbyw6O-BLkExoihgzUneub2xKjdgwLM8mHXLd4RzmIZcqEPdo9emLDuY4-Q_36n3pQiP/exec';
+
+function blobToDataURL(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+document.getElementById('submitBtn').addEventListener('click', async () => {
+
+  const className = document.getElementById('className').value.trim();
+  const seatNumber = document.getElementById('seatNo').value.trim();
+  const studentId = document.getElementById('studentCode').value.trim();
+
+  if (!className || !seatNumber || !studentId) {
+    alert('請先填寫班級、座號和學生代碼。');
+    return;
+  }
+
+  if (Object.keys(recordings).length < 10) {
+    alert('第三部分尚未完成 10 題錄音，請完成後再提交。');
+    return;
+  }
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = '資料上傳中，請稍候…';
+
+  try {
+    const s = getScores();
+    const audioData = [];
+
+    for (let i = 1; i <= 10; i++) {
+      if (recordings[i]) {
+        const dataURL = await blobToDataURL(recordings[i]);
+        audioData.push({
+          question: i,
+          data: dataURL
+        });
+      }
+    }
+
+    const data = {
+      className: className,
+      seatNumber: seatNumber,
+      studentId: studentId,
+      part1Score: s.a,
+      part2Score: s.b,
+      totalScore: s.a + s.b,
+      part1Answers: [],
+      part2Answers: [],
+      recordings: audioData
+    };
+
+    await fetch(SUBMIT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8'
+      },
+      body: JSON.stringify(data)
+    });
+
+    alert('測驗資料已送出。請告知老師後再關閉網頁。');
+    btn.textContent = '已提交測驗';
+
+  } catch (error) {
+    console.error(error);
+    alert('資料上傳失敗，請不要關閉網頁，並告知老師。');
+    btn.disabled = false;
+    btn.textContent = '提交測驗給老師';
+  }
+});
+</script>  
 </body>
 </html>
